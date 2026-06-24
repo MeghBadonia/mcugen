@@ -1,5 +1,5 @@
 pkgname=mcugen
-pkgver=2.0.0
+pkgver=3.0.0
 pkgrel=1
 pkgdesc="Material Color Utilities Generator"
 arch=('x86_64')
