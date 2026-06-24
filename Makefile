@@ -1,57 +1,56 @@
 # Makefile — mcugen
 # Material Color Utilities Generator
-# Automatically ported by Claude (Anthropic). MIT License.
 
 CC      ?= gcc
-CFLAGS  ?= -std=c11 -Os -Wall -Wextra -Wpedantic -Wno-unused-parameter \
-           -Wno-unused-function -Wno-format-truncation -Wno-stringop-truncation -fPIC -I.
+CFLAGS  ?= -std=c11 -Os -Wall -Wextra -Wpedantic \
+           -Wno-unused-parameter -Wno-unused-function \
+           -Wno-format-truncation -Wno-stringop-truncation \
+           -Iinclude -Isrc/lib
 AR      ?= ar
 ARFLAGS  = rcs
 
-BIN  = mcugen
+BIN     = build/mcugen
+LIB     = build/libmcu.a
 VERSION = 2.0.0
-LIB  = libmcu.a
 
-SRCS = \
-    utils/math_utils.c       \
-    utils/color_utils.c      \
-    utils/string_utils.c     \
-    hct/viewing_conditions.c \
-    hct/cam16.c              \
-    hct/hct_solver.c         \
-    hct/hct.c                \
-    blend/blend.c            \
-    contrast/contrast.c      \
-    dislike/dislike.c        \
-    palettes/tonal_palette.c \
-    score/score.c            \
-    temperature/temperature_cache.c
+LIB_SRCS = \
+    src/lib/utils/math_utils.c       \
+    src/lib/utils/color_utils.c      \
+    src/lib/utils/string_utils.c     \
+    src/lib/hct/viewing_conditions.c \
+    src/lib/hct/cam16.c              \
+    src/lib/hct/hct_solver.c         \
+    src/lib/hct/hct.c                \
+    src/lib/blend/blend.c            \
+    src/lib/contrast/contrast.c      \
+    src/lib/dislike/dislike.c        \
+    src/lib/palettes/tonal_palette.c \
+    src/lib/score/score.c            \
+    src/lib/temperature/temperature_cache.c
 
-OBJS = $(SRCS:.c=.o)
+LIB_OBJS = $(patsubst src/%.c, build/%.o, $(LIB_SRCS))
 
 all: $(BIN)
 
-# Static library from MCU sources
-$(LIB): $(OBJS)
+$(LIB): $(LIB_OBJS)
 	$(AR) $(ARFLAGS) $@ $^
 
-# Single executable: mcugen.c + libmcu.a
-$(BIN): mcugen.c $(LIB)
-	$(CC) $(CFLAGS) -o $@ mcugen.c -L. -lmcu -lm -lpthread
+$(BIN): src/main.c $(LIB)
+	$(CC) $(CFLAGS) -o $@ $< -Lbuild -lmcu -lm -lpthread
 
-%.o: %.c
+build/%.o: src/%.c
+	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-# Install to ~/.local/bin
 install: $(BIN)
-	install -Dm755 $(BIN) $(HOME)/.local/bin/$(BIN)
-	@echo "Installed to $(HOME)/.local/bin/$(BIN)"
+	install -Dm755 $(BIN) $(HOME)/.local/bin/mcugen
+	@echo "Installed to $(HOME)/.local/bin/mcugen"
 	@echo "Run 'mcugen init' to create starter config."
 
 uninstall:
-	rm -f $(HOME)/.local/bin/$(BIN)
+	rm -f $(HOME)/.local/bin/mcugen
 
 clean:
-	rm -f $(OBJS) $(LIB) $(BIN)
+	rm -rf build/
 
 .PHONY: all install uninstall clean
