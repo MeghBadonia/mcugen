@@ -146,19 +146,16 @@ void dispatch(const Args *a) {
         config_path(cfg_path, sizeof(cfg_path));
     }
 
+    /* init and reload don't need a config to exist */
+    if (a->cmd == CMD_INIT)  { cmd_init();   return; }
+    if (a->cmd == CMD_RELOAD){ cmd_reload(); return; }
+
     Config cfg = load_config(cfg_path);
 
     switch (a->cmd) {
-    case CMD_INIT:
-        cmd_init();
-        break;
 
     case CMD_CHECK:
         cmd_check(&cfg, cfg_path);
-        break;
-
-    case CMD_RELOAD:
-        cmd_reload();
         break;
 
     case CMD_PROFILES:
