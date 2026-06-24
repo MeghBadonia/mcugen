@@ -46,6 +46,33 @@ void toml_parse(const char *src, TomlDoc *doc) {
             }
         }
         toml_trim(val);
+        /* Expand inline arrays: output_path = ["a","b"] → two entries */
+        if (val[0] == '[') {
+            char *arr = val + 1;
+            char *end = strrchr(arr, ']');
+            if (end) *end = '\0';
+            while (*arr) {
+                while (*arr && (isspace((unsigned char)*arr) || *arr == ',')) arr++;
+                if (!*arr) break;
+                char elem[TOML_MAX_VAL] = "";
+                if (*arr == '"' || *arr == '\'') {
+                    char q = *arr++; int ei = 0;
+                    while (*arr && *arr != q && ei < TOML_MAX_VAL-1) elem[ei++] = *arr++;
+                    elem[ei] = '\0'; if (*arr) arr++;
+                } else {
+                    int ei = 0;
+                    while (*arr && *arr != ',' && *arr != ']' && ei < TOML_MAX_VAL-1) elem[ei++] = *arr++;
+                    elem[ei] = '\0'; toml_trim(elem);
+                }
+                if (!elem[0]) continue;
+                if (doc->n >= TOML_MAX_ENT) { warn("TOML limit reached"); break; }
+                snprintf(doc->e[doc->n].sec, TOML_MAX_SEC, "%s", sec);
+                snprintf(doc->e[doc->n].key, TOML_MAX_KEY, "%s", key);
+                snprintf(doc->e[doc->n].val, TOML_MAX_VAL, "%s", elem);
+                doc->n++;
+            }
+            continue;
+        }
         size_t vl = strlen(val);
         if (vl>=2 && ((val[0]=='"'&&val[vl-1]=='"')||(val[0]=='\''&&val[vl-1]=='\'')))
             { val[vl-1]='\0'; memmove(val, val+1, vl-1); }

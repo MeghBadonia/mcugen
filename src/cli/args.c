@@ -25,6 +25,24 @@
 #include <string.h>
 #include <stdlib.h>
 
+/* Returns ARGB int on success, 0 on invalid input. */
+static int parse_hex_color(const char *s) {
+    if (!s) return 0;
+    const char *p = (s[0] == '#') ? s + 1 : s;
+    int len = (int)strlen(p);
+    if (len != 6 && len != 3) return 0;
+    for (int i = 0; i < len; i++) {
+        char c = p[i];
+        if (!((c>='0'&&c<='9')||(c>='a'&&c<='f')||(c>='A'&&c<='F'))) return 0;
+    }
+    unsigned long v = strtoul(p, NULL, 16);
+    if (len == 3) {
+        unsigned r = (v>>8)&0xF, g = (v>>4)&0xF, b = v&0xF;
+        v = (r<<20)|(r<<16)|(g<<12)|(g<<8)|(b<<4)|b;
+    }
+    return (int)(0xFF000000u | (unsigned)v);
+}
+
 static SchemeVariant parse_sv(const char *s) {
     if (!strcmp(s,"tonal-spot"))   return VARIANT_TONAL_SPOT;
     if (!strcmp(s,"vibrant"))      return VARIANT_VIBRANT;
@@ -164,8 +182,19 @@ void dispatch(const Args *a) {
 
     case CMD_SAVE: {
         if (!a->profile_name) die("save requires a profile name");
-        const char *sh = a->seed_hex ? a->seed_hex : "#000000";
-        const char *st = "tonal-spot";
+        char cached_hex[16] = "";
+        const char *sh = a->seed_hex;
+        if (!sh) {
+            /* load last-used seed from cache */
+            int cached_seed = 0;
+            if (cache_load_last_seed(&cached_seed) && cached_seed) {
+                snprintf(cached_hex, sizeof(cached_hex), "#%06x",
+                         (unsigned)(cached_seed & 0xFFFFFF));
+                sh = cached_hex;
+            }
+        }
+        if (!sh) die("save: no seed specified and no cached seed found; run 'mcugen color <#hex>' first");
+        const char *st = variant_name(a->sv);
         cmd_save_profile(a->profile_name, sh, a->dark, st);
         break;
     }
@@ -194,8 +223,8 @@ void dispatch(const Args *a) {
         if (!a->show_sub) die("show requires 'color' or 'image'");
         if (!strcmp(a->show_sub,"color")) {
             if (!a->seed_hex) die("show color requires a #hex argument");
-            unsigned long v = strtoul(a->seed_hex[0]=='#' ? a->seed_hex+1 : a->seed_hex, NULL, 16);
-            int seed = (int)(0xFF000000u | (unsigned)v);
+            int seed = parse_hex_color(a->seed_hex);
+            if (!seed) die("invalid hex color: '%s'", a->seed_hex);
             if (a->do_export)
                 cmd_export(seed, a->dark, a->sv, a->export_fmt, a->export_out);
             else
@@ -216,8 +245,8 @@ void dispatch(const Args *a) {
 
     case CMD_COLOR: {
         if (!a->seed_hex) die("color requires a #hex argument");
-        unsigned long v = strtoul(a->seed_hex[0]=='#' ? a->seed_hex+1 : a->seed_hex, NULL, 16);
-        int seed = (int)(0xFF000000u | (unsigned)v);
+        int seed = parse_hex_color(a->seed_hex);
+        if (!seed) die("invalid hex color: '%s'", a->seed_hex);
         if (a->do_export)
             cmd_export(seed, a->dark, a->sv, a->export_fmt, a->export_out);
         else

@@ -44,6 +44,19 @@ void cache_path(char *out, size_t sz) {
     snprintf(out, sz, "%s/%s", dir, CACHE_FILE);
 }
 
+int cache_load_last_seed(int *out_seed) {
+    char cp[MAX_PATH]; cache_path(cp, sizeof(cp));
+    char *src = read_file(cp); if (!src) return 0;
+    char *ps = strstr(src, "\"seed\":");
+    int ok = 0;
+    if (ps) {
+        ps += 7; while (*ps=='"'||*ps==' ') ps++;
+        unsigned long v = strtoul(ps, NULL, 16);
+        if (v) { *out_seed = (int)v; ok = 1; }
+    }
+    free(src); return ok;
+}
+
 int cache_load_seed(const char *image_path, int *out_seed) {
     char cp[MAX_PATH]; cache_path(cp, sizeof(cp));
     char *src = read_file(cp); if (!src) return 0;
