@@ -1,0 +1,10 @@
+Package: mcugen
+Version: 2.0.0
+Section: utils
+Priority: optional
+Architecture: amd64
+Maintainer: Megh Badonia <badoniamegh@gmail.com>
+Description: Material Color Utilities Generator
+ Generates complete Material You color schemes from any image or seed color
+ and applies them to template files using a simple token syntax.
+Homepage: https://github.com/MeghBadonia/mcugen
