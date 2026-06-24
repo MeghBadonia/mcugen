@@ -17,6 +17,7 @@ BINARY="$ROOT/build/mcugen"
 # ── .deb ─────────────────────────────────────────────────────────────────────
 echo "==> Building .deb..."
 DEB_STAGE="$(mktemp -d)"
+chmod 755 "$DEB_STAGE"
 mkdir -p "$DEB_STAGE/DEBIAN" "$DEB_STAGE/usr/bin"
 cp "$ROOT/pkg/deb/DEBIAN/control" "$DEB_STAGE/DEBIAN/control"
 install -m755 "$BINARY" "$DEB_STAGE/usr/bin/mcugen"
@@ -41,40 +42,44 @@ echo "    -> $DIST/mcugen-${VERSION}-1.${ARCH}.rpm"
 
 # ── .pkg.tar.zst (Arch) ──────────────────────────────────────────────────────
 echo "==> Building .pkg.tar.zst..."
-ARCH_STAGE="$(mktemp -d)"
-mkdir -p "$ARCH_STAGE/usr/bin"
-install -m755 "$BINARY" "$ARCH_STAGE/usr/bin/mcugen"
-
 PKG_NAME="mcugen-${VERSION}-1-${ARCH}.pkg.tar.zst"
-MTREE="$(mktemp)"
+ARCH_BUILD="$(mktemp -d)"
+ARCH_PKG="$ARCH_BUILD/pkg"
+mkdir -p "$ARCH_PKG/usr/bin"
+install -m755 "$BINARY" "$ARCH_PKG/usr/bin/mcugen"
 
-# Build .MTREE
-bsdtar -czf "$MTREE" --format=mtree \
-    --options='!all,use-set,type,uid,gid,mode,time,size,md5,sha256,link' \
-    -C "$ARCH_STAGE" .
+INSTALLED_SIZE=$(du -sb "$ARCH_PKG" | cut -f1)
+BUILDDATE=$(date +%s)
 
-# Build .PKGINFO
-INSTALLED_SIZE=$(du -sk "$ARCH_STAGE" | cut -f1)
-cat > "$ARCH_STAGE/.PKGINFO" <<EOF
+cat > "$ARCH_BUILD/.PKGINFO" <<EOF
 pkgname = mcugen
 pkgver = ${VERSION}-1
 pkgdesc = Material Color Utilities Generator
 url = https://github.com/MeghBadonia/mcugen
-builddate = $(date +%s)
+builddate = ${BUILDDATE}
 packager = Megh Badonia <badoniamegh@gmail.com>
 size = ${INSTALLED_SIZE}
 arch = ${ARCH}
 license = MIT
 EOF
 
-cp "$MTREE" "$ARCH_STAGE/.MTREE"
-rm "$MTREE"
+PKG_OUT="$DIST/$PKG_NAME"
 
-bsdtar -cf "$DIST/${PKG_NAME%.zst}" -C "$ARCH_STAGE" .
-zstd -T0 -19 "$DIST/${PKG_NAME%.zst}" -o "$DIST/$PKG_NAME"
-rm -f "$DIST/${PKG_NAME%.zst}"
-rm -rf "$ARCH_STAGE"
-echo "    -> $DIST/$PKG_NAME"
+# .MTREE must be gzip-compressed (as in real makepkg output)
+bsdtar -czf "$ARCH_BUILD/.MTREE" --format=mtree \
+    --options='!all,use-set,type,uid,gid,mode,time,size,md5,sha256,link' \
+    --uid 0 --gid 0 --uname root --gname root \
+    -C "$ARCH_PKG" .
+
+# Final archive: root:root ownership, no leading ./ on payload paths
+fakeroot bsdtar --no-fflags -cf - \
+    --uid 0 --gid 0 --uname root --gname root \
+    -C "$ARCH_BUILD" .PKGINFO .MTREE \
+    -C "$ARCH_PKG" usr \
+    | zstd -T0 -19 --force -o "$PKG_OUT"
+
+rm -rf "$ARCH_BUILD"
+echo "    -> $PKG_OUT"
 
 echo ""
 echo "==> All packages built in $DIST/"
